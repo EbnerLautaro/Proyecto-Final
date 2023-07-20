@@ -1,4 +1,4 @@
-#include "apiparte3.h"
+#include "APIParte3.h"
 #include "stdio.h"
 
 // bool checkear_coloreo(Grafo G, u32 *Color) {

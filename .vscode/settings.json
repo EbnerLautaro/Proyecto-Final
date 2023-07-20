@@ -3,6 +3,7 @@
         "algorithm": "c",
         "functional": "c",
         "compare": "c",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "random": "c"
     }
 }
