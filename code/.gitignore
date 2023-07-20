@@ -1,0 +1,7 @@
+.ccls-cache
+
+**/*.o
+
+a.out
+parte2guille.*
+.vscode* 
