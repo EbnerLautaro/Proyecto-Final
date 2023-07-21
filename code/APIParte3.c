@@ -57,38 +57,33 @@ u32 computeNC(u32 vertice, u32* Color, Grafo G) {
 }
 
 
-u32 colorear(u32 vertice_a_colorear, Grafo G, u32* Color) {
+u32 colorear(u32* colores_usados, u32 umbral, u32 vertice_a_colorear, Grafo G, u32* Color) {
 
     u32 color_a_pintar = MAX_U32;
 
     // Si no tiene vecino lo coloreamos con el color 0;
     if (Grado(vertice_a_colorear, G) == 0) { return 0; } 
 
-    // Lista de colores usados, calloc inicializa todos los lugares en 0, es decir en COLOR_NO_USADO.
-    u32* colores_usados = calloc(NumeroDeVertices(G), sizeof(u32)); 
-    if (colores_usados==NULL) { return ERROR_CODE;}
-    
     // Recorremos los vecinos
     for (u32 i = 0; i < Grado(vertice_a_colorear, G); i++) {
         u32 color_vecino = Color[IndiceVecino(i, vertice_a_colorear, G)];
 
         // Vemos solo los vecinos coloreados
         if (color_vecino != MAX_U32) {
-            colores_usados[color_vecino] = COLOR_USADO;
+            // Marcamos como usado el color del vecino
+            colores_usados[color_vecino] = umbral+1;
         }
     }   
 
     // Encontramos el minimo color no usado
     for (u32 i = 0; i < NumeroDeVertices(G); i++) {
-        if (colores_usados[i]==COLOR_NO_USADO) {
+        if (colores_usados[i] <= umbral) {
             color_a_pintar = i;
             break;
         }
     }
 
     // Liberamos memoria
-    free(colores_usados);
-    colores_usados = NULL;
     return color_a_pintar;
 }
 
@@ -131,7 +126,7 @@ u32 GreedyDinamico(Grafo G, u32* Orden, u32* Color, u32 p) {
         array = array1 U array2: array1=array{0..(p-1)}, array2=array{p,n}.
 
         Luego vamos a ordenar array2 con el criterio dado, lo volvemos a unir con array1 
-        y coloreamos de forma normal.
+        Zy coloreamos de forma normal.
     */
 
     // Pisamos color para poder ver si coloreamos bien
@@ -174,6 +169,10 @@ u32 GreedyDinamico(Grafo G, u32* Orden, u32* Color, u32 p) {
     // La variable que vamos a retornar
     u32 max_color = 0;
 
+
+    u32* colores_usados = calloc(NumeroDeVertices(G),sizeof(u32));
+    if (colores_usados==NULL) { return ERROR_CODE;}
+
     // Greedy normal
     // Recorremos los vertices
     for (u32 i = 0; i < NumeroDeVertices(G); i++) {
@@ -181,7 +180,7 @@ u32 GreedyDinamico(Grafo G, u32* Orden, u32* Color, u32 p) {
         u32 vertice_a_colorear = Orden[i];
     
         // Obtenemos el menor color tal que es distinto de sus vecinos
-        u32 nuevo_color = colorear(vertice_a_colorear, G, Color);
+        u32 nuevo_color = colorear(colores_usados, i, vertice_a_colorear, G, Color);
 
         // Nos fijamos si hubo error
         if (nuevo_color == MAX_U32) {return (2^32)-1;}
