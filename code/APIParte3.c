@@ -130,7 +130,8 @@ u32 GreedyDinamico(Grafo G, u32* Orden, u32* Color, u32 p) {
         Lo que vamos a hacer es partir los arrays en 2 partes, tal que 
         array = array1 U array2: array1=array{0..(p-1)}, array2=array{p,n}.
 
-        Luego vamos a ordenar array2 con el criterio dado y colorear con ese orden de vertices.
+        Luego vamos a ordenar array2 con el criterio dado, lo volvemos a unir con array1 
+        y coloreamos de forma normal.
     */
 
     // Pisamos color para poder ver si coloreamos bien
