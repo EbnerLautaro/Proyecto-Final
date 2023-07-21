@@ -22,23 +22,51 @@ u32 max(u32 a, u32 b) {
         return a;
     } 
 }
+
+// Usaremos estas macros para greedy
 #define COLOR_USADO 1
 #define COLOR_NO_USADO 0
 
 
-u32 colorear(u32 vertice_a_colorear, Grafo G, u32* Color) {
+// Numero de colores distintos de los vecinos ya coloreados de vertice
+u32 computeNC(u32 vertice, u32* Color, Grafo G) {
 
+    if (Grado(vertice,G) == 0) { return 0;}
+    
+    // Lista de colores usados, calloc inicializa todos los lugares en 0, es decir en COLOR_NO_USADO.
+    u32* colores_usados = calloc(NumeroDeVertices(G), sizeof(u32)); 
+    if (colores_usados == NULL) { return ERROR_CODE;}
+    
+    for (u32 i = 0; i < Grado(vertice, G); i++) {
+        u32 color_vecino = Color[IndiceVecino(i, vertice, G)];
+
+        // Vemos solo los vecinos coloreados
+        if (color_vecino != MAX_U32) {
+            colores_usados[color_vecino] = COLOR_USADO;
+        }
+    }
+
+    // Computamamos la cantidad de COLOR_USADO que hay en este array
+    u32 cant_colores = 0;
+    for (u32 i = 0; i < NumeroDeVertices(G); i++) {
+        if (colores_usados[i] == COLOR_USADO) {
+            cant_colores++;
+        }
+    }
+    return cant_colores;
+}
+
+
+u32 colorear(u32 vertice_a_colorear, Grafo G, u32* Color) {
 
     u32 color_a_pintar = MAX_U32;
 
     // Si no tiene vecino lo coloreamos con el color 0;
-    if (Grado(vertice_a_colorear, G) == 0) {
-        return 0;
-    } 
+    if (Grado(vertice_a_colorear, G) == 0) { return 0; } 
 
     // Lista de colores usados, calloc inicializa todos los lugares en 0, es decir en COLOR_NO_USADO.
     u32* colores_usados = calloc(NumeroDeVertices(G), sizeof(u32)); 
-    if (colores_usados==NULL) { return MAX_U32};
+    if (colores_usados==NULL) { return ERROR_CODE;}
     
     // Recorremos los vecinos
     for (u32 i = 0; i < Grado(vertice_a_colorear, G); i++) {
@@ -48,19 +76,45 @@ u32 colorear(u32 vertice_a_colorear, Grafo G, u32* Color) {
         if (color_vecino != MAX_U32) {
             colores_usados[color_vecino] = COLOR_USADO;
         }
-        // Encontramos el minimo color no usado
-        for (u32 i = 0; i < NumeroDeVertices(G); i++) {
-            if (colores_usados[i]==COLOR_NO_USADO) {
-                color_a_pintar = i;
-                break;
-            }
-        }
     }   
+
+    // Encontramos el minimo color no usado
+    for (u32 i = 0; i < NumeroDeVertices(G); i++) {
+        if (colores_usados[i]==COLOR_NO_USADO) {
+            color_a_pintar = i;
+            break;
+        }
+    }
+
+    // Liberamos memoria
     free(colores_usados);
     colores_usados = NULL;
     return color_a_pintar;
-
 }
+
+struct GD_St {
+    u32 Orden2;
+    u32 NC_value;
+    u32 index;
+};
+
+int compareGD(const void* a, const void* b) {
+    struct GD_St g1 = *(struct GD_St*) a; 
+    struct GD_St g2 = *(struct GD_St*) b; 
+
+    if (g1.NC_value > g2.NC_value) {
+        return -1;
+    } else if (g1.NC_value == g2.NC_value) {
+        if (g1.index <= g2.index ) {
+            return -1;
+        } else {
+            return 1;
+        }
+    } else {
+        return 1;
+    }
+}
+
 
 u32 GreedyDinamico(Grafo G, u32* Orden, u32* Color, u32 p) {
     /*
@@ -84,90 +138,64 @@ u32 GreedyDinamico(Grafo G, u32* Orden, u32* Color, u32 p) {
         Color[i] = MAX_U32;
     }
 
+    // Definimos, separamos e inicializamos Orden2 tal que
+    // Orden2=Orden{p,n}. En este array van a estar los vertices que se colorean
+    // de forma distinta que greedy normal
+    if (p<NumeroDeVertices(G)) {
+        
+        u32 length = NumeroDeVertices(G)-p;
+
+        struct GD_St* GD_list = calloc(length, sizeof(struct GD_St));
+        if (GD_list == NULL) { return ERROR_CODE; }
+
+        // Copiamos los valores que corresponden.
+        // podriamos usar memcpy y algebra de punteros 
+        for (u32 i=p, u=0; i < NumeroDeVertices(G); i++, u++) {
+            GD_list[u].Orden2 = Orden[i];
+            GD_list[u].index = i;
+            GD_list[u].NC_value = computeNC(Orden[i], Color, G); //-------------------------------------------------------
+        }
+
+        // Ordenamos esta lista de estrcturas
+        qsort(GD_list, length, sizeof(struct GD_St), compareGD);
+
+        // Escribimos en la parte del array Orden que corresponde, es decir en
+        // Orden{p..n} el nuevo orden calculado.
+        for (u32 i=p, u=0; i < NumeroDeVertices(G); i++, u++) {
+            Orden[i] = GD_list[u].Orden2;
+        }
+        
+        // liberamos memoria
+        free(GD_list);
+        GD_list = NULL;
+    }
+
     // La variable que vamos a retornar
     u32 max_color = 0;
 
+    // Greedy normal
     // Recorremos los vertices
     for (u32 i = 0; i < NumeroDeVertices(G); i++) {
 
-        if (i < p) {
-            u32 vertice_a_colorear = Orden[i];
-        
-            // obtenemos el menor color tal que es distinto de sus vecinos
-            u32 nuevo_color = colorear(vertice_a_colorear, G, Color);
-
-            // Nos fijamos si hubo error
-            if (nuevo_color == MAX_U32) {return (2^32)-1;}
-
-            // Escribimos el array con el nuevo color
-            Color[Orden[i]] = nuevo_color;
-
-            // actualizamos max_color
-            max_color = max(max_color, nuevo_color);
-
-        } else {
-
-        }
-        
+        u32 vertice_a_colorear = Orden[i];
     
-    
+        // Obtenemos el menor color tal que es distinto de sus vecinos
+        u32 nuevo_color = colorear(vertice_a_colorear, G, Color);
+
+        // Nos fijamos si hubo error
+        if (nuevo_color == MAX_U32) {return (2^32)-1;}
+
+        // Escribimos el array con el nuevo color
+        Color[Orden[i]] = nuevo_color;
+
+        // Actualizamos max_color
+        max_color = max(max_color, nuevo_color);
+        
     }
     
-
-
-
-
-
-
-
-
-
-
-
-
-
+    // Contamos el color 0
     return max_color+1;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 struct FO_St {
     u32* vertices;      
@@ -176,7 +204,7 @@ struct FO_St {
     u32 color;
 };
 
-int compareFO (void* a, void* b) {
+int compareFO (const void* a, const void* b) {
     struct FO_St v1 = *(struct FO_St*) a; 
     struct FO_St v2 = *(struct FO_St*) b; 
     if (v1.E_value > v2.E_value) {
@@ -250,7 +278,7 @@ char FirstOrder(Grafo G, u32* Orden, u32* Color) {
     
     // Computamos m(x) y M(x) para todos los colores
     // Complejidad O(n)
-    for (u32 i = 0; i < NumeroDeVertices; i++) {
+    for (u32 i = 0; i < NumeroDeVertices(G); i++) {
         m_list[Color[i]] = min(m_list[Color[i]], Grado(i,G));
         M_list[Color[i]] = max(M_list[Color[i]], Grado(i,G));
     }
@@ -262,18 +290,24 @@ char FirstOrder(Grafo G, u32* Orden, u32* Color) {
         if ((Color[i]+2)%3 == 0) {
             tmp.vertices[tmp.vertex_count] = i;
             tmp.vertex_count++;
-            tmp.E_value = 0x7fffffff + m(Color[i]);
+            tmp.E_value = 0x7fffffff + m_list[Color[i]];
         } else if ((Color[i]+1)%3 == 0) {
             tmp.vertices[tmp.vertex_count] = i;
             tmp.vertex_count++;
-            tmp.E_value = 0x1fff + m(Color[i]);
+            tmp.E_value = 0x1fff + m_list[Color[i]];
         } else if ((Color[i]+0)%3 == 0) {
             tmp.vertices[tmp.vertex_count] = i;
             tmp.vertex_count++;
-            tmp.E_value = M(Color[i]) + m(Color[i]);
+            tmp.E_value = M_list[Color[i]] + m_list[Color[i]];
         }
     }
-    
+
+    // Liberamos memoria
+    free(M_list);
+    M_list = NULL;
+    free(m_list);
+    m_list = NULL;
+
     // Ordenamos este array de estructuras.
     // Complejidad O(r log r)
     qsort(FO_list, color_count, sizeof(struct FO_St), compareFO);
@@ -294,10 +328,7 @@ char FirstOrder(Grafo G, u32* Orden, u32* Color) {
     // Liberamos memoria restante
     free(FO_list);
     FO_list = NULL;
-    free(M_list);
-    M_list = NULL;
-    free(m_list);
-    m_list = NULL;
+
     
     /* 
     Complejidad total:
@@ -319,7 +350,7 @@ struct SO_St {
     u32 color;
 };
 
-int compareSO (void* a, void* b) {
+int compareSO (const void* a, const void* b) {
     // The comparison function must return an integer less than, equal to, or greater than
     // zero if the first argument is considered to be respectively less  than,  equal  to,  
     // or greater than the second.  If two members compare as equal, their order in the 
@@ -338,12 +369,12 @@ int compareSO (void* a, void* b) {
             return 1;
         }
 
-    } else if (v1.S_value < v2.S_value) {
+    } else {
         return 1;
     }
 }
 
-char SecondOrder(Grafo G,u32* Orden,u32* Color) {
+char SecondOrder(Grafo G,u32* Orden, u32* Color) {
     /* RESUMEN:
         '0' -> no error
         '1' -> error
@@ -415,8 +446,8 @@ char SecondOrder(Grafo G,u32* Orden,u32* Color) {
             Orden[order_i] = SO_list[color_i].vertices[vertex_i];
             order_i++;
         }
-        free(SO_list[color_i].color);
-        SO_list[color_i].color = NULL;
+        free(SO_list[color_i].vertices);
+        SO_list[color_i].vertices = NULL;
     }
     
     // Liberamos la memoria restante
@@ -430,7 +461,6 @@ char SecondOrder(Grafo G,u32* Orden,u32* Color) {
         O(n + n log n)                  = 
         O(n log n)    
     */
-
 
     return '0';
 }
