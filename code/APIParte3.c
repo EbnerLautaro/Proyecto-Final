@@ -5,8 +5,7 @@
 #include "APIParte3.h"
 #include "apig23.h"
 
-// Returns min between 2 elements
-u32 min(u32 a, u32 b) {
+static u32 min(u32 a, u32 b) {
     if (a <= b) {
         return a;
     } else {
@@ -14,8 +13,7 @@ u32 min(u32 a, u32 b) {
     }
 }
 
-// Returns max between 2 elements
-u32 max(u32 a, u32 b) {
+static u32 max(u32 a, u32 b) {
     if (a <= b) {
         return b;
     } else {
@@ -23,9 +21,16 @@ u32 max(u32 a, u32 b) {
     }
 }
 
-// Usaremos estas macros para greedy
 #define COLOR_USADO 1
 #define COLOR_NO_USADO 0
+
+void swap(u32* Orden, u32 i, u32 j) {
+    u32 tmp = Orden[i];
+    Orden[i] = Orden[j];
+    Orden[j] = tmp;
+}
+
+
 
 // Numero de colores distintos de los vecinos ya coloreados de vertice
 u32 computeNC(u32 vertice, u32 *Color, Grafo G) {
@@ -57,6 +62,8 @@ u32 computeNC(u32 vertice, u32 *Color, Grafo G) {
             cant_colores++;
         }
     }
+    free(colores_usados);
+    colores_usados = NULL;
     return cant_colores;
 }
 
@@ -140,34 +147,52 @@ u32 GreedyDinamico(Grafo G, u32 *Orden, u32 *Color, u32 p) {
         Color[i] = MAX_U32;
     }
 
-    // Definimos, separamos e inicializamos Orden2 tal que
-    // Orden2=Orden{p,n}. En este array van a estar los vertices que se colorean
-    // de forma distinta que greedy normal
-
     // La variable que vamos a retornar
     u32 max_color = 0;
 
-    u32 *colores_usados = calloc(NumeroDeVertices(G), sizeof(u32));
-    if (colores_usados == NULL) {
-        return ERROR_CODE;
-    }
-    struct GD_St *GD_list = NULL;
-    struct GD_St **GD_list_swap = NULL;
+    u32* colores_usados = calloc(NumeroDeVertices(G),sizeof(u32));
+    if (colores_usados==NULL) { return ERROR_CODE;}
+
     // Greedy normal
     // Recorremos los vertices
-    for (u32 i = 0; i < p; i++) {
-
-        u32 vertice_a_colorear;
-        vertice_a_colorear = Orden[i];
-
+    for (u32 i = 0; i < p && i<NumeroDeVertices(G); i++) {
+        u32 vertice_a_colorear = Orden[i];
+    
         // Obtenemos el menor color tal que es distinto de sus vecinos
-        u32 nuevo_color =
-            colorear(colores_usados, i, vertice_a_colorear, G, Color);
+        u32 nuevo_color = colorear(colores_usados, i, vertice_a_colorear, G, Color);
 
         // Nos fijamos si hubo error
-        if (nuevo_color == MAX_U32) {
-            return (1UL << 32) - 1;
+        if (nuevo_color == MAX_U32) {return (2^32)-1;}
+
+        // Escribimos el array con el nuevo color
+        Color[Orden[i]] = nuevo_color;
+
+        // Actualizamos max_color
+        max_color = max(max_color, nuevo_color);
+        
+    }
+    // Complejidad O(n)
+    for (u32 i = p; i < NumeroDeVertices(G) && p < NumeroDeVertices(G) ; i++) {
+        
+        u32 max_nc = 0;
+        // Complejidad O(n)
+        for (u32 j = i; j < NumeroDeVertices(G); j++) {
+
+            // Complejidad O(n)
+            u32 current_nc = computeNC(Orden[j], Color, G); 
+            if (current_nc > max_nc) {
+                max_nc = current_nc;
+                swap(Orden, i, j);
+            }
         }
+
+        u32 vertice_a_colorear = Orden[i];
+    
+        // Obtenemos el menor color tal que es distinto de sus vecinos
+        u32 nuevo_color = colorear(colores_usados, i, vertice_a_colorear, G, Color);
+
+        // Nos fijamos si hubo error
+        if (nuevo_color == MAX_U32) {return (2^32)-1;}
 
         // Escribimos el array con el nuevo color
         Color[Orden[i]] = nuevo_color;
@@ -176,92 +201,11 @@ u32 GreedyDinamico(Grafo G, u32 *Orden, u32 *Color, u32 p) {
         max_color = max(max_color, nuevo_color);
     }
 
-
-    for (u32 i = p, u = 0; i < NumeroDeVertices(G); i++, u++) {
-
-        if (p == i) {
-
-            GD_list_swap =
-                calloc(NumeroDeVertices(G) - p, sizeof(struct GD_St *));
-            GD_list = calloc(NumeroDeVertices(G), sizeof(struct GD_St));
-            if (GD_list == NULL) {
-                return ERROR_CODE;
-            }
-
-            // Copiamos los valores que corresponden.
-            // podriamos usar memcpy y algebra de punteros
-            for (u32 j = p; j < NumeroDeVertices(G); j++) {
-                GD_list[Orden[j]].Orden2 = Orden[j];
-                GD_list[Orden[j]].index = j;
-                GD_list[Orden[j]].NC_value = computeNC(Orden[j], Color, G);
-
-                if (j >= p) {
-                    GD_list_swap[j - p] = &GD_list[Orden[j]];
-                }
-            }
-        }
-
-        u32 vertice_a_colorear;
-        u32 ncmax = GD_list_swap[i - p]->NC_value;
-        u32 jmax = i - p;
-        vertice_a_colorear = GD_list_swap[i - p]->Orden2;
-        for (u32 j = (i + 1) - p ; j < NumeroDeVertices(G) - p; ++j) {
-            if (ncmax < GD_list_swap[j]->NC_value ||
-                (ncmax == GD_list_swap[j]->NC_value &&
-                 GD_list_swap[jmax]->index < GD_list_swap[j]->index)) {
-                jmax = j;
-                ncmax = GD_list_swap[j]->NC_value;
-            }
-        }
-        vertice_a_colorear = GD_list_swap[jmax]->Orden2;
-
-        // vertice_a_colorear es el de maximo nc en este punto
-        // Swapeo para quedarme con el maximo al principio de GD_list y
-        // luego revisar los que le siguen.
-        struct GD_St *swp_aux = GD_list_swap[i - p];
-        GD_list_swap[i - p] = GD_list_swap[jmax];
-        GD_list_swap[jmax] = swp_aux;
-
-        // Obtenemos el menor color tal que es distinto de sus vecinos
-        u32 nuevo_color =
-            colorear(colores_usados, i, vertice_a_colorear, G, Color);
-
-        // Actualizamos NC de los vecinos del coloreado
-        for (u32 j = 0; j < Grado(i, G); j++) {
-            u32 vecino = IndiceVecino(j, i, G);
-            if (Color[vecino] != MAX_U32)
-                continue;
-
-            bool color_es_nuevo = true;
-            for (u32 k = 0; k < Grado(j, G) && color_es_nuevo; k++) {
-                color_es_nuevo =
-                    IndiceVecino(k, j, G) == i ||
-                    Color[IndiceVecino(k, j, G)] != nuevo_color;
-            }
-
-            if (color_es_nuevo) {
-                GD_list[j].NC_value++;
-            }
-        }
-
-        // Nos fijamos si hubo error
-        if (nuevo_color == MAX_U32) {
-            return (1UL << 32) - 1;
-        }
-
-        // Escribimos el array con el nuevo color
-        Color[Orden[i]] = nuevo_color;
-
-        // Actualizamos max_color
-        max_color = max(max_color, nuevo_color);
-    }
-
-    free(GD_list);
-    free(GD_list_swap);
     free(colores_usados);
+    colores_usados = NULL;
 
     // Contamos el color 0
-    return max_color + 1;
+    return max_color+1;
 }
 
 struct FO_St {

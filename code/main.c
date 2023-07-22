@@ -1,6 +1,24 @@
 #include "APIParte3.h"
 #include "stdio.h"
 
+
+u32 min(u32 a, u32 b) {
+    if (a <= b) {
+        return a;
+    } else {
+        return b;
+    }
+}
+
+u32 max(u32 a, u32 b) {
+    if (a <= b) {
+        return b;
+    } else {
+        return a;
+    }
+}
+
+
 bool checkear_coloreo(Grafo G, u32 *Color) {
     // O(m)
     for (u32 index = 0; index < NumeroDeVertices(G); ++index) {
@@ -42,34 +60,30 @@ int main() {
     }
 
     printf("Inicio greedy \n");
-    ji = GreedyDinamico(G,Orden, Color, (n+1));
+    ji = GreedyDinamico(G,Orden, Color, 0);
     printf("Fin greedy \n");
 
     check(ji, G, Color);
     max_ji = max(max_ji, ji);
     min_ji = min(min_ji, ji);
     
-
+    u32 u = 0;
     for (u32 i = 0; i < 10; i++) {
-        for (u32 j = 0; j < 10; j++) {
-            // printf("FirstOrder\n");
+        for (u32 j = 0; j < 10; j++,u++) {
             c = FirstOrder(G, Orden, Color);
-            // printf("Reorder hecho una vez: %s\n", c == '0' ? "SUCCESS" : "FAILURE");
-            // printf("Inicio greedy\n");
-            ji = GreedyDinamico(G, Orden, Color, (n+1));
-            // printf("Fin greedy \n");
+            if (c == '1') { printf("Error de ordenamiento"); }
+            ji = GreedyDinamico(G, Orden, Color, 0);
+            printf("%u: ",u);
             check(ji, G, Color);      
             max_ji = max(max_ji, ji);
             min_ji = min(min_ji, ji);
     
         }
-        for (u32 j = 0; j < 10; j++) {
-            // printf("FirstOrder\n");
+        for (u32 j = 0; j < 10; j++, u++) {
             c = SecondOrder(G, Orden, Color);
-            // printf("Reorder hecho una vez: %s\n", c == '0' ? "SUCCESS" : "FAILURE");
-            // printf("Inicio greedy\n");
-            ji = GreedyDinamico(G, Orden, Color, (n+1));
-            // printf("Fin greedy \n");
+            if (c == '1') { printf("Error de ordenamiento"); }
+            ji = GreedyDinamico(G, Orden, Color, 0);
+            printf("%u: ",u);
             check(ji, G, Color);      
             max_ji = max(max_ji, ji);
             min_ji = min(min_ji, ji);
