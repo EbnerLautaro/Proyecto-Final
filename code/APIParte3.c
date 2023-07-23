@@ -193,7 +193,7 @@ u32 GreedyDinamico(Grafo G, u32 *Orden, u32 *Color, u32 p) {
 
     // Si vamos a tener parte dinamica, inicializamos NC para tener computada la
     // funcion
-    if (p <= NumeroDeVertices(G)) {
+    if (p < NumeroDeVertices(G)) {
         // Reservamos memoria para los ultimos n-p vertices en Orden
         NC = malloc(NumeroDeVertices(G) - p * sizeof(u32));
         Orden_swap = malloc(NumeroDeVertices(G) * sizeof(u32 *));
@@ -290,7 +290,7 @@ u32 GreedyDinamico(Grafo G, u32 *Orden, u32 *Color, u32 p) {
 
     free(colores_usados);
 
-    if (p <= NumeroDeVertices(G)) {
+    if (p < NumeroDeVertices(G)) {
         free(NC + p);
         free(Orden_swap);
     }
