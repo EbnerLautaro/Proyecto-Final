@@ -24,13 +24,17 @@ static u32 max(u32 a, u32 b) {
 #define COLOR_USADO 1
 #define COLOR_NO_USADO 0
 
-void swap(u32* Orden, u32 i, u32 j) {
-    u32 tmp = Orden[i];
+void swap_nc(u32 *NC, u32 i, u32 j) {
+    u32 tmp = NC[i];
+    NC[i] = NC[j];
+    NC[j] = tmp;
+}
+
+void swap_orden(u32 **Orden, u32 i, u32 j) {
+    u32 *tmp = Orden[i];
     Orden[i] = Orden[j];
     Orden[j] = tmp;
 }
-
-
 
 // Numero de colores distintos de los vecinos ya coloreados de vertice
 u32 computeNC(u32 vertice, u32 *Color, Grafo G) {
@@ -150,49 +154,100 @@ u32 GreedyDinamico(Grafo G, u32 *Orden, u32 *Color, u32 p) {
     // La variable que vamos a retornar
     u32 max_color = 0;
 
-    u32* colores_usados = calloc(NumeroDeVertices(G),sizeof(u32));
-    if (colores_usados==NULL) { return ERROR_CODE;}
+    u32 *colores_usados = calloc(NumeroDeVertices(G), sizeof(u32));
+    if (colores_usados == NULL) {
+        return ERROR_CODE;
+    }
 
     // Greedy normal
     // Recorremos los vertices
-    for (u32 i = 0; i < p && i<NumeroDeVertices(G); i++) {
+    for (u32 i = 0; i < p && i < NumeroDeVertices(G); i++) {
         u32 vertice_a_colorear = Orden[i];
-    
+
         // Obtenemos el menor color tal que es distinto de sus vecinos
-        u32 nuevo_color = colorear(colores_usados, i, vertice_a_colorear, G, Color);
+        u32 nuevo_color =
+            colorear(colores_usados, i, vertice_a_colorear, G, Color);
 
         // Nos fijamos si hubo error
-        if (nuevo_color == MAX_U32) {return (2^32)-1;}
+        if (nuevo_color == MAX_U32) {
+            return MAX_U32;
+        }
 
         // Escribimos el array con el nuevo color
         Color[Orden[i]] = nuevo_color;
 
         // Actualizamos max_color
         max_color = max(max_color, nuevo_color);
-        
     }
-    // Complejidad O(n)
-    for (u32 i = p; i < NumeroDeVertices(G) && p < NumeroDeVertices(G) ; i++) {
-        
-        u32 max_nc = 0;
-        // Complejidad O(n)
-        for (u32 j = i; j < NumeroDeVertices(G); j++) {
 
-            // Complejidad O(n)
-            u32 current_nc = computeNC(Orden[j], Color, G); 
-            if (current_nc > max_nc) {
-                max_nc = current_nc;
-                swap(Orden, i, j);
-            }
+    // Cache para NC(x)
+    // NC[j] = NC(*Orden_swap[j]) <-- NO SE INDEXA POR NOMBRE, SINO POR POSICION EN Orden_swap
+    // siempre swapear en AMBOS ARREGLOS
+    u32 *NC;
+    u32 **Orden_swap;
+
+    u32 delta = Delta(G);
+
+    // Si vamos a tener parte dinamica, inicializamos NC para tener computada la funcion
+    if (p <= NumeroDeVertices(G)) {
+        // Reservamos memoria para los ultimos n-p vertices en Orden
+        NC = malloc(NumeroDeVertices(G)-p * sizeof(u32));
+        Orden_swap = malloc(NumeroDeVertices(G) * sizeof(u32*));
+
+        // Inicializamos NC de esos vertices en delta + 1
+        // Vamos a usar NC > delta como guarda para valores aun no computados
+        for(u32 j = p; j < NumeroDeVertices(G)-p; ++j) {
+            NC[j] = delta + 1;
         }
 
+        // Inicializamos Orden_swap
+        for(u32 j = 0; j < NumeroDeVertices(G)-p; ++j) {
+            Orden_swap[j] = &Orden[j];
+        }
+        // Aplicamos un offset para no tener i - p en todos los accesos de abajo
+        NC = NC - p; 
+    }
+    // Complejidad O(n)
+    for (u32 i = p; i < NumeroDeVertices(G) && p < NumeroDeVertices(G); i++) {
+        // invariante: p <= i < n
+
+        u32 max_nc = 0;
+        u32 i_max_nc = i;
+        // Complejidad O(n)
+        for (u32 j = i; j < NumeroDeVertices(G); j++) {
+            // invariante: p <= i, j < n
+
+            // Complejidad O(n)
+            u32 current_nc;
+
+            // De ser necesario, computamos y cacheamos
+            if(NC[j] > delta) {
+                NC[j] = computeNC(*Orden_swap[j], Color, G);
+            }
+            current_nc = NC[j];
+
+            // Nos quedamos con el de mayor nc
+            // Desempatamos por posicion en Orden. (Notar que Orden_swap tiene punteros dentro de Orden, y sus valores denotan tambien el orden original)
+            if (current_nc > max_nc ||
+                current_nc == max_nc && Orden_swap[j] <= Orden_swap[i_max_nc]
+            ) {
+                max_nc = current_nc;
+                i_max_nc = j;
+            }
+        }
+        swap_orden(Orden_swap, i, i_max_nc);
+        swap_nc(NC, i, i_max_nc);
+
         u32 vertice_a_colorear = Orden[i];
-    
+
         // Obtenemos el menor color tal que es distinto de sus vecinos
-        u32 nuevo_color = colorear(colores_usados, i, vertice_a_colorear, G, Color);
+        u32 nuevo_color =
+            colorear(colores_usados, i, vertice_a_colorear, G, Color);
 
         // Nos fijamos si hubo error
-        if (nuevo_color == MAX_U32) {return (2^32)-1;}
+        if (nuevo_color == MAX_U32) {
+            return MAX_U32;
+        }
 
         // Escribimos el array con el nuevo color
         Color[Orden[i]] = nuevo_color;
@@ -202,10 +257,15 @@ u32 GreedyDinamico(Grafo G, u32 *Orden, u32 *Color, u32 p) {
     }
 
     free(colores_usados);
+
+    if (p <= NumeroDeVertices(G)) {
+        free(NC + p);
+        free(Orden_swap);
+    }
     colores_usados = NULL;
 
     // Contamos el color 0
-    return max_color+1;
+    return max_color + 1;
 }
 
 struct FO_St {
