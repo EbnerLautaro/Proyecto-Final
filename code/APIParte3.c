@@ -181,31 +181,37 @@ u32 GreedyDinamico(Grafo G, u32 *Orden, u32 *Color, u32 p) {
     }
 
     // Cache para NC(x)
-    // NC[j] = NC(*Orden_swap[j]) <-- NO SE INDEXA POR NOMBRE, SINO POR POSICION EN Orden_swap
-    // siempre swapear en AMBOS ARREGLOS
+    // NC[j] = NC(*Orden_swap[j]) <-- NO SE INDEXA POR NOMBRE, SINO POR POSICION
+    // EN Orden_swap siempre swapear en AMBOS ARREGLOS
     u32 *NC;
     u32 **Orden_swap;
 
+    // Mapeo inverso, vertice -> posicion en `Orden`
+    u32 *Orden_inverso;
+
     u32 delta = Delta(G);
 
-    // Si vamos a tener parte dinamica, inicializamos NC para tener computada la funcion
+    // Si vamos a tener parte dinamica, inicializamos NC para tener computada la
+    // funcion
     if (p <= NumeroDeVertices(G)) {
         // Reservamos memoria para los ultimos n-p vertices en Orden
-        NC = malloc(NumeroDeVertices(G)-p * sizeof(u32));
-        Orden_swap = malloc(NumeroDeVertices(G) * sizeof(u32*));
+        NC = malloc(NumeroDeVertices(G) - p * sizeof(u32));
+        Orden_swap = malloc(NumeroDeVertices(G) * sizeof(u32 *));
+        Orden_inverso = malloc(NumeroDeVertices(G) * sizeof(u32));
 
         // Inicializamos NC de esos vertices en delta + 1
         // Vamos a usar NC > delta como guarda para valores aun no computados
-        for(u32 j = p; j < NumeroDeVertices(G)-p; ++j) {
+        for (u32 j = p; j < NumeroDeVertices(G) - p; ++j) {
             NC[j] = delta + 1;
         }
 
-        // Inicializamos Orden_swap
-        for(u32 j = 0; j < NumeroDeVertices(G)-p; ++j) {
+        // Inicializamos Orden_swap y Orden_inverso
+        for (u32 j = 0; j < NumeroDeVertices(G) - p; ++j) {
             Orden_swap[j] = &Orden[j];
+            Orden_inverso[Orden[j]] = j;
         }
         // Aplicamos un offset para no tener i - p en todos los accesos de abajo
-        NC = NC - p; 
+        NC = NC - p;
     }
     // Complejidad O(n)
     for (u32 i = p; i < NumeroDeVertices(G) && p < NumeroDeVertices(G); i++) {
@@ -221,16 +227,17 @@ u32 GreedyDinamico(Grafo G, u32 *Orden, u32 *Color, u32 p) {
             u32 current_nc;
 
             // De ser necesario, computamos y cacheamos
-            if(NC[j] > delta) {
+            if (NC[j] > delta) {
                 NC[j] = computeNC(*Orden_swap[j], Color, G);
             }
             current_nc = NC[j];
 
             // Nos quedamos con el de mayor nc
-            // Desempatamos por posicion en Orden. (Notar que Orden_swap tiene punteros dentro de Orden, y sus valores denotan tambien el orden original)
+            // Desempatamos por posicion en Orden. (Notar que Orden_swap tiene
+            // punteros dentro de Orden, y sus valores denotan tambien el orden
+            // original)
             if (current_nc > max_nc ||
-                current_nc == max_nc && Orden_swap[j] <= Orden_swap[i_max_nc]
-            ) {
+                current_nc == max_nc && Orden_swap[j] <= Orden_swap[i_max_nc]) {
                 max_nc = current_nc;
                 i_max_nc = j;
             }
@@ -251,6 +258,31 @@ u32 GreedyDinamico(Grafo G, u32 *Orden, u32 *Color, u32 p) {
 
         // Escribimos el array con el nuevo color
         Color[Orden[i]] = nuevo_color;
+
+        // Actualizamos los NC de los no coloreados
+        for (u32 j = 0; j < Grado(vertice_a_colorear, G); j++) {
+            // Vecino a actualizar
+            u32 vecino = IndiceVecino(j, vertice_a_colorear, G);
+
+            // Si el vecino fue coloreado, no nos interesa su NC
+            if(Color[vecino] != MAX_U32) {
+                continue;
+            }
+
+            bool aumenta_nc = true;
+            for (u32 k = 0; k < Grado(vertice_a_colorear, G); j++) {
+                u32 vecino_de_vecino = IndiceVecino(k, vecino, G);
+                if (vecino_de_vecino != vertice_a_colorear &&
+                    Color[vecino_de_vecino] == nuevo_color) {
+                    aumenta_nc = false;
+                    break;
+                }
+            }
+
+            // La posicion de `vecino` en `Orden` es >= p, por lo tanto el acceso de memoria de abajo es valido
+            if(aumenta_nc)
+                NC[Orden_inverso[vecino]]++;
+        }
 
         // Actualizamos max_color
         max_color = max(max_color, nuevo_color);
