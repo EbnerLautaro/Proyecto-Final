@@ -201,17 +201,17 @@ u32 GreedyDinamico(Grafo G, u32 *Orden, u32 *Color, u32 p) {
 
         // Inicializamos NC de esos vertices en delta + 1
         // Vamos a usar NC > delta como guarda para valores aun no computados
-        for (u32 j = p; j < NumeroDeVertices(G) - p; ++j) {
-            NC[j] = delta + 1;
-        }
-
         // Inicializamos Orden_swap y Orden_inverso
         for (u32 j = 0; j < NumeroDeVertices(G) - p; ++j) {
             Orden_swap[j] = &Orden[j];
             Orden_inverso[Orden[j]] = j;
+
+            if (j >= p) {
+                NC[j] = delta + 1;
+            }
         }
         // Aplicamos un offset para no tener i - p en todos los accesos de abajo
-        NC = NC - p;
+        NC = NC + p;
     }
     // Complejidad O(n)
     for (u32 i = p; i < NumeroDeVertices(G) && p < NumeroDeVertices(G); i++) {
@@ -291,7 +291,7 @@ u32 GreedyDinamico(Grafo G, u32 *Orden, u32 *Color, u32 p) {
     free(colores_usados);
 
     if (p < NumeroDeVertices(G)) {
-        free(NC + p);
+        free(NC - p);
         free(Orden_swap);
     }
     colores_usados = NULL;
