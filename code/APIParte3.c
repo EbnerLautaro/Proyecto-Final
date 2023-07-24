@@ -37,37 +37,30 @@ void swap_orden(u32 **Orden, u32 i, u32 j) {
 }
 
 // Numero de colores distintos de los vecinos ya coloreados de vertice
-u32 computeNC(u32 vertice, u32 *Color, Grafo G) {
+u32 computeNC(u32 *colores_usados, u32 umbral, u32 vertice, u32 *Color,
+              Grafo G) {
 
     if (Grado(vertice, G) == 0) {
         return 0;
     }
 
-    // Lista de colores usados, calloc inicializa todos los lugares en 0, es
     // decir en COLOR_NO_USADO.
-    u32 *colores_usados = calloc(NumeroDeVertices(G), sizeof(u32));
     if (colores_usados == NULL) {
         return ERROR_CODE;
     }
+    u32 cant_colores = 0;
 
+    // Computamamos la cantidad de COLOR_USADO que hay en este array
     for (u32 i = 0; i < Grado(vertice, G); i++) {
         u32 color_vecino = Color[IndiceVecino(i, vertice, G)];
 
         // Vemos solo los vecinos coloreados
-        if (color_vecino != MAX_U32) {
-            colores_usados[color_vecino] = COLOR_USADO;
-        }
-    }
-
-    // Computamamos la cantidad de COLOR_USADO que hay en este array
-    u32 cant_colores = 0;
-    for (u32 i = 0; i < NumeroDeVertices(G); i++) {
-        if (colores_usados[i] == COLOR_USADO) {
+        if (color_vecino != MAX_U32 && colores_usados[color_vecino] <= umbral) {
+            colores_usados[color_vecino] = umbral + 1;
             cant_colores++;
         }
     }
-    free(colores_usados);
-    colores_usados = NULL;
+
     return cant_colores;
 }
 
@@ -75,6 +68,10 @@ u32 colorear(u32 *colores_usados, u32 umbral, u32 vertice_a_colorear, Grafo G,
              u32 *Color) {
 
     u32 color_a_pintar = MAX_U32;
+
+    if (Color[vertice_a_colorear] != MAX_U32) {
+        return MAX_U32;
+    }
 
     // Si no tiene vecino lo coloreamos con el color 0;
     if (Grado(vertice_a_colorear, G) == 0) {
@@ -154,7 +151,10 @@ u32 GreedyDinamico(Grafo G, u32 *Orden, u32 *Color, u32 p) {
     // La variable que vamos a retornar
     u32 max_color = 0;
 
+    u32 delta = Delta(G);
+
     u32 *colores_usados = calloc(NumeroDeVertices(G), sizeof(u32));
+    u32 *colores_usados_NC = NULL;
     if (colores_usados == NULL) {
         return ERROR_CODE;
     }
@@ -174,44 +174,31 @@ u32 GreedyDinamico(Grafo G, u32 *Orden, u32 *Color, u32 p) {
         }
 
         // Escribimos el array con el nuevo color
-        Color[Orden[i]] = nuevo_color;
+        Color[vertice_a_colorear] = nuevo_color;
 
         // Actualizamos max_color
         max_color = max(max_color, nuevo_color);
     }
 
     // Cache para NC(x)
-    // NC[j] = NC(*Orden_swap[j]) <-- NO SE INDEXA POR NOMBRE, SINO POR POSICION
-    // EN Orden_swap siempre swapear en AMBOS ARREGLOS
+    // NC[j] = NC(j)
     u32 *NC;
     u32 **Orden_swap;
-
-    // Mapeo inverso, vertice -> posicion en `Orden`
-    u32 *Orden_inverso;
-
-    u32 delta = Delta(G);
 
     // Si vamos a tener parte dinamica, inicializamos NC para tener computada la
     // funcion
     if (p < NumeroDeVertices(G)) {
         // Reservamos memoria para los ultimos n-p vertices en Orden
-        NC = malloc(NumeroDeVertices(G) - p * sizeof(u32));
+        NC = malloc(NumeroDeVertices(G) * sizeof(u32));
         Orden_swap = malloc(NumeroDeVertices(G) * sizeof(u32 *));
-        Orden_inverso = malloc(NumeroDeVertices(G) * sizeof(u32));
+        colores_usados_NC = calloc(NumeroDeVertices(G), sizeof(u32));
 
         // Inicializamos NC de esos vertices en delta + 1
         // Vamos a usar NC > delta como guarda para valores aun no computados
-        // Inicializamos Orden_swap y Orden_inverso
-        for (u32 j = 0; j < NumeroDeVertices(G) - p; ++j) {
+        for (u32 j = 0; j < NumeroDeVertices(G); ++j) {
             Orden_swap[j] = &Orden[j];
-            Orden_inverso[Orden[j]] = j;
-
-            if (j >= p) {
-                NC[j] = delta + 1;
-            }
+            NC[j] = delta + 1;
         }
-        // Aplicamos un offset para no tener i - p en todos los accesos de abajo
-        NC = NC + p;
     }
     // Complejidad O(n)
     for (u32 i = p; i < NumeroDeVertices(G) && p < NumeroDeVertices(G); i++) {
@@ -226,26 +213,27 @@ u32 GreedyDinamico(Grafo G, u32 *Orden, u32 *Color, u32 p) {
             // Complejidad O(n)
             u32 current_nc;
 
-            // De ser necesario, computamos y cacheamos
+            // De ser necesario, computamos y cacheamos NC
             if (NC[j] > delta) {
-                NC[j] = computeNC(*Orden_swap[j], Color, G);
+                NC[*Orden_swap[j]] =
+                    computeNC(colores_usados_NC, i, *Orden_swap[j], Color, G);
             }
-            current_nc = NC[j];
+            current_nc = NC[*Orden_swap[j]];
 
             // Nos quedamos con el de mayor nc
             // Desempatamos por posicion en Orden. (Notar que Orden_swap tiene
             // punteros dentro de Orden, y sus valores denotan tambien el orden
             // original)
             if (current_nc > max_nc ||
-                current_nc == max_nc && Orden_swap[j] <= Orden_swap[i_max_nc]) {
+                (current_nc == max_nc &&
+                 Orden_swap[j] <= Orden_swap[i_max_nc])) {
                 max_nc = current_nc;
                 i_max_nc = j;
             }
         }
         swap_orden(Orden_swap, i, i_max_nc);
-        swap_nc(NC, i, i_max_nc);
 
-        u32 vertice_a_colorear = Orden[i];
+        u32 vertice_a_colorear = *Orden_swap[i];
 
         // Obtenemos el menor color tal que es distinto de sus vecinos
         u32 nuevo_color =
@@ -257,7 +245,7 @@ u32 GreedyDinamico(Grafo G, u32 *Orden, u32 *Color, u32 p) {
         }
 
         // Escribimos el array con el nuevo color
-        Color[Orden[i]] = nuevo_color;
+        Color[vertice_a_colorear] = nuevo_color;
 
         // Actualizamos los NC de los no coloreados
         for (u32 j = 0; j < Grado(vertice_a_colorear, G); j++) {
@@ -265,12 +253,12 @@ u32 GreedyDinamico(Grafo G, u32 *Orden, u32 *Color, u32 p) {
             u32 vecino = IndiceVecino(j, vertice_a_colorear, G);
 
             // Si el vecino fue coloreado, no nos interesa su NC
-            if(Color[vecino] != MAX_U32) {
+            if (Color[vecino] != MAX_U32) {
                 continue;
             }
 
             bool aumenta_nc = true;
-            for (u32 k = 0; k < Grado(vertice_a_colorear, G); j++) {
+            for (u32 k = 0; k < Grado(vecino, G); k++) {
                 u32 vecino_de_vecino = IndiceVecino(k, vecino, G);
                 if (vecino_de_vecino != vertice_a_colorear &&
                     Color[vecino_de_vecino] == nuevo_color) {
@@ -279,9 +267,10 @@ u32 GreedyDinamico(Grafo G, u32 *Orden, u32 *Color, u32 p) {
                 }
             }
 
-            // La posicion de `vecino` en `Orden` es >= p, por lo tanto el acceso de memoria de abajo es valido
-            if(aumenta_nc)
-                NC[Orden_inverso[vecino]]++;
+            // La posicion de `vecino` en `Orden` es >= p, por lo tanto el
+            // acceso de memoria de abajo es valido
+            if (aumenta_nc)
+                NC[vecino]++;
         }
 
         // Actualizamos max_color
@@ -289,12 +278,14 @@ u32 GreedyDinamico(Grafo G, u32 *Orden, u32 *Color, u32 p) {
     }
 
     free(colores_usados);
+    colores_usados = NULL;
 
     if (p < NumeroDeVertices(G)) {
-        free(NC - p);
+        free(NC);
         free(Orden_swap);
+        free(colores_usados_NC);
+        colores_usados_NC = NULL;
     }
-    colores_usados = NULL;
 
     // Contamos el color 0
     return max_color + 1;
