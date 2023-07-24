@@ -453,16 +453,8 @@ int compareSO(const void *a, const void *b) {
 
     struct SO_St v1 = *(struct SO_St *)a;
     struct SO_St v2 = *(struct SO_St *)b;
-    if (v1.S_value > v2.S_value) {
+    if (v1.S_value >= v2.S_value) {
         return -1;
-    } else if (v1.S_value == v2.S_value) {
-        // Desempatamos por color
-        if (v1.color >= v2.color) {
-            return -1;
-        } else {
-            return 1;
-        }
-
     } else {
         return 1;
     }
@@ -498,8 +490,10 @@ char SecondOrder(Grafo G, u32 *Orden, u32 *Color) {
     color_count++;
 
     // Vamos a crear e inicializar una lista de estructuras SO_St
+    // En la SO_list[color_count] vamos a guardar todos los vertices tales que 
+    // Grado(i,G) = 1.
     // Complejidad O(r) <= O(n)
-    struct SO_St *SO_list = calloc(color_count, sizeof(struct SO_St));
+    struct SO_St *SO_list = calloc(color_count+1, sizeof(struct SO_St));
     // Memoria disponible
     if (SO_list == NULL) {
         return '1';
@@ -523,24 +517,24 @@ char SecondOrder(Grafo G, u32 *Orden, u32 *Color) {
             SO_list[Color[i]].vertex_count++;
             SO_list[Color[i]].S_value += Grado(i, G);
         } else {
-            SO_list[color_count - 1]
-                .vertices[SO_list[color_count - 1].vertex_count] = i;
-            SO_list[color_count - 1].vertex_count++;
+            SO_list[color_count]
+                .vertices[SO_list[color_count].vertex_count] = i;
+            SO_list[color_count].vertex_count++;
         }
     }
 
-    // Vamos a ordenar por el criterio dado, los vertices con Grado(i,j)<=1 son
+    // Vamos a ordenar por el criterio dado, los vertices con Grado(i,G)=1 son
     // puestos al final ya que 0 = "el menor valor de S(x)", estos vertices
-    // tambien son ordenados en bloques de colores. Complejidad O(r log r) <=
+    // tambien son ordenados en bloques de colores. 
     // O(n log n)
     qsort(SO_list, color_count, sizeof(struct SO_St), compareSO);
 
     // Ahora vamos a escribir en Orden lo que ordenamos, agregando al ultimo los
     // vertices tal que Grado(i,G) <= 1
-    // Aprobechamos para liberar memoria
+    // Aprovechamos para liberar memoria
     // Complejidad O(n)
     u32 order_i = 0;
-    for (u32 color_i = 0; color_i < color_count; color_i++) {
+    for (u32 color_i = 0; color_i < color_count+1; color_i++) {
         for (u32 vertex_i = 0; vertex_i < SO_list[color_i].vertex_count;
              vertex_i++) {
             Orden[order_i] = SO_list[color_i].vertices[vertex_i];
